@@ -76,12 +76,11 @@
             <div class="p-4 border-t border-slate-100 bg-white">
                 <label class="text-[10px] font-black text-slate-400 uppercase mb-2 block">api ключи:</label>
                 <input type="password" id="gemini-key-input" placeholder="gemini api key" class="w-full p-2 mb-2 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none">
-                <input type="password" id="deepseek-key-input" placeholder="deepseek api key" class="w-full p-2 mb-2 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none">
-                
+                <input type="password" id="gigachat-key-input" placeholder="gigachat auth token" class="w-full p-2 mb-2 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none">
                 <label class="text-[10px] font-black text-slate-400 uppercase mb-2 block">выбор модели:</label>
                 <select id="model-select" class="w-full p-2 mb-3 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none">
                     <option value="gemini">gemini</option>
-                    <option value="deepseek">deepseek</option>
+                    <option value="gigachat">gigachat</option>
                 </select>
                 <button onclick="saveApiKeys()" class="w-full py-2 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-700">сохранить ключи</button>
             </div>
@@ -221,16 +220,16 @@
 	}
 
         function saveApiKeys() {
-            const gKey = document.getElementById('gemini-key-input').value;
-            const dKey = document.getElementById('deepseek-key-input').value;
-            localStorage.setItem('gemini_key', gKey);
-            localStorage.setItem('deepseek_key', dKey);
-            alert('ключи успешно обновлены');
-        }
+    const gKey = document.getElementById('gemini-key-input').value;
+    const gcAuthKey = document.getElementById('gigachat-key-input').value; // Сюда вставляем <>
+    localStorage.setItem('gemini_key', gKey);
+    localStorage.setItem('gigachat_auth_key', gcAuthKey);
+    alert('ключи успешно обновлены');
+}
 
         function updateModelBadges() {
             const model = document.getElementById('model-select').value;
-            const modelName = model === 'gemini' ? 'gemini 1.5 flash' : 'deepseek-chat';
+            const modelName = model === 'gemini' ? 'gemini' : 'gigachat';
             const theoryBadge = document.getElementById('theory-model-badge');
             const practiceBadge = document.getElementById('practice-model-badge');
             if (theoryBadge) theoryBadge.innerText = `активная модель: ${modelName}`;
@@ -332,29 +331,63 @@ function updateTaskDisplay() {
                 return { error: false, text: data.candidates[0].content.parts[0].text };
             } catch (e) { return { error: true, msg: "ошибка связи" }; }
         }
+async function getGigaChatToken() {
+    // убираем случайное слово basic, если оно было скопировано вместе с ключом
+    const rawKey = document.getElementById('gigachat-key-input').value;
+    const authKey = rawKey.replace('Basic ', '').trim();
+    if (!authKey) return null;
 
-        async function callDeepseekAPI(prompt, systemPrompt) {
-            const apiKey = document.getElementById('deepseek-key-input').value;
-            if (!apiKey) return { error: true, msg: "введите ключ deepseek" };
-            try {
-                const response = await fetch('https://api.deepseek.com/chat/completions', {
-                    method: 'post',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-                    body: JSON.stringify({
-                        model: "deepseek-chat",
-                        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }]
-                    })
-                });
-                const data = await response.json();
-                if (data.error) return { error: true, msg: data.error.message };
-                return { error: false, text: data.choices[0].message.content };
-            } catch (e) { return { error: true, msg: "ошибка связи" }; }
-        }
+
+    try {
+        // меняем localhost на адрес от render
+        const response = await fetch('https://python-vkr.onrender.com', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ auth_key: authKey })
+        });
+        const data = await response.json();
+        return data.access_token;
+    } catch (e) {
+        console.error("ошибка: сервер в облаке недоступен", e);
+        return null;
+    }
+}
+        async function callGigaChatAPI(prompt, systemPrompt) {
+    const accessToken = await getGigaChatToken();
+    if (!accessToken) return { error: true, msg: "ошибка авторизации (проверьте ключ или сертификаты)" };
+
+    const targetUrl = 'https://gigachat.devices.sberbank.ru/api/v1/chat/completions';
+    const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetUrl);
+
+    try {
+        const response = await fetch(proxyUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`
+            },
+            body: JSON.stringify({
+                model: "GigaChat",
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: prompt }
+                ],
+                stream: false
+            })
+        });
+
+        const data = await response.json();
+        if (data.error) return { error: true, msg: data.message || "ошибка гигачата" };
+        return { error: false, text: data.choices[0].message.content };
+    } catch (e) {
+        return { error: true, msg: "ошибка соединения (вероятно, прокси блокирует ssl сбербанка)" };
+    }
+}
 
         async function dispatchAIRequest(prompt, systemPrompt) {
-            const model = document.getElementById('model-select').value;
-            return model === 'deepseek' ? await callDeepseekAPI(prompt, systemPrompt) : await callGeminiAPI(prompt, systemPrompt);
-        }
+    const model = document.getElementById('model-select').value;
+    return model === 'gigachat' ? await callGigaChatAPI(prompt, systemPrompt) : await callGeminiAPI(prompt, systemPrompt);
+}
 
         async function sendTheoryChat() {
             const input = document.getElementById('theory-input');
@@ -400,13 +433,15 @@ function updateTaskDisplay() {
         }
 
         window.onload = function() {
-            renderMenu();
-            initEditor();
-            if (typeof brython === "function") brython();
-            if(localStorage.getItem('gemini_key')) document.getElementById('gemini-key-input').value = localStorage.getItem('gemini_key');
-            if(localStorage.getItem('deepseek_key')) document.getElementById('deepseek-key-input').value = localStorage.getItem('deepseek_key');
-            document.getElementById('model-select').addEventListener('change', updateModelBadges);
-        };
+    renderMenu();
+    initEditor();
+    if (typeof brython === "function") brython();
+    if(localStorage.getItem('gemini_key')) document.getElementById('gemini-key-input').value = localStorage.getItem('gemini_key');
+    // Исправлено: берем корректный ключ
+    if(localStorage.getItem('gigachat_auth_key')) {
+        document.getElementById('gigachat-key-input').value = localStorage.getItem('gigachat_auth_key');
+    }
+};
 
 	    document.addEventListener('keydown', (e) => {
 	    if (e.key === 'Escape') {
