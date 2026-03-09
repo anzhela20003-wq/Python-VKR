@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Учебный курс Python + AI</title>
+	  <script>
+	        // функция для динамической подгрузки локального скрипта
+	        function loadLocalScript(path) {
+	            console.warn('ошибка: не удалось загрузить файл из cdn, пробую локальный путь: ' + path);
+	            const script = document.createElement('script');
+	            script.src = path;
+	            document.head.appendChild(script);
+	        }
+    </script>
     
     <script src="https://cdn.tailwindcss.com" onerror="loadLocalScript('assets/js/tailwind.min.js')"></script>
     
@@ -27,17 +36,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js" 
             onerror="loadLocalScript('assets/js/codemirror.min.js')"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/python/python.min.js" 
-            onerror="loadLocalScript('assets/js/python.min.js')"></script>    <style>
-
-    <script>
-	        // функция для динамической подгрузки локального скрипта
-	        function loadLocalScript(path) {
-	            console.warn('ошибка: не удалось загрузить файл из cdn, пробую локальный путь: ' + path);
-	            const script = document.createElement('script');
-	            script.src = path;
-	            document.head.appendChild(script);
-	        }
-    </script>
+            onerror="loadLocalScript('assets/js/python.min.js')"></script>    
+	<style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
         body { font-family: 'Inter', sans-serif; }
 	@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
@@ -467,3 +467,4 @@ async function getGigaChatToken() {
     </script>
 </body>
 </html>
+
