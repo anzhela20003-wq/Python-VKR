@@ -332,15 +332,13 @@ function updateTaskDisplay() {
             } catch (e) { return { error: true, msg: "ошибка связи" }; }
         }
 async function getGigaChatToken() {
-    // убираем случайное слово basic, если оно было скопировано вместе с ключом
     const rawKey = document.getElementById('gigachat-key-input').value;
     const authKey = rawKey.replace('Basic ', '').trim();
     if (!authKey) return null;
 
-
     try {
-        // меняем localhost на адрес от render
-        const response = await fetch('https://python-vkr.onrender.com', {
+        // исправление: добавили точный путь /auth к адресу сервера
+        const response = await fetch('https://python-vkr.onrender.com/auth', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ auth_key: authKey })
@@ -352,35 +350,33 @@ async function getGigaChatToken() {
         return null;
     }
 }
-        async function callGigaChatAPI(prompt, systemPrompt) {
-    const accessToken = await getGigaChatToken();
-    if (!accessToken) return { error: true, msg: "ошибка авторизации (проверьте ключ или сертификаты)" };
 
-    const targetUrl = 'https://gigachat.devices.sberbank.ru/api/v1/chat/completions';
-    const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetUrl);
+
+    async function callGigaChatAPI(prompt, systemPrompt) {
+    const accessToken = await getGigaChatToken();
+    if (!accessToken) return { error: true, msg: "ошибка авторизации (проверьте ключ)" };
 
     try {
-        const response = await fetch(proxyUrl, {
+        // исправление: направляем запрос на наш собственный сервер в маршрут /chat
+        const response = await fetch('https://python-vkr.onrender.com/chat', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: "GigaChat",
+                token: accessToken,
                 messages: [
                     { role: "system", content: systemPrompt },
                     { role: "user", content: prompt }
-                ],
-                stream: false
+                ]
             })
         });
 
         const data = await response.json();
-        if (data.error) return { error: true, msg: data.message || "ошибка гигачата" };
+        if (data.error) return { error: true, msg: data.error };
         return { error: false, text: data.choices[0].message.content };
     } catch (e) {
-        return { error: true, msg: "ошибка соединения (вероятно, прокси блокирует ssl сбербанка)" };
+        return { error: true, msg: "ошибка соединения: не удалось достучаться до сервера" };
     }
 }
 
